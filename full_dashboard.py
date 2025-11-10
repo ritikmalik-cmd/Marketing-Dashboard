@@ -6,13 +6,24 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import time
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # -----------------------------
-# Zoho CRM API details
+# Zoho CRM API details from Environment Variables
 # -----------------------------
-ZOHO_CLIENT_ID = "1000.JY4N7CSGP5S31JKJFEMJTSBZGJL2EJ"
-ZOHO_CLIENT_SECRET = "60ab68b202ff2d73e9113cadeaf6f17218c8e3febb"
-ZOHO_REFRESH_TOKEN = "1000.985a431241ab09913d864dfa4e3d66fd.1658f0fc3616853d44d9dcac4ef42104"
+ZOHO_CLIENT_ID = os.getenv("ZOHO_CLIENT_ID")
+ZOHO_CLIENT_SECRET = os.getenv("ZOHO_CLIENT_SECRET")
+ZOHO_REFRESH_TOKEN = os.getenv("ZOHO_REFRESH_TOKEN")
+
+# Validate that credentials are set
+if not all([ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, ZOHO_REFRESH_TOKEN]):
+    st.error("❌ Missing Zoho CRM credentials in environment variables!")
+    st.error("Please ensure .env file contains ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET, and ZOHO_REFRESH_TOKEN")
+    st.stop()
 
 class ZohoCRM:
     def __init__(self):

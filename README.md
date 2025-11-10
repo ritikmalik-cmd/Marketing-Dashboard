@@ -45,18 +45,43 @@ git clone https://github.com/ritikmalik-cmd/Marketing-Dashboard.git
 cd Marketing-Dashboard
 ```
 
-2. **Install required packages:**
+2. **Create a virtual environment (recommended):**
 ```bash
-pip install streamlit requests pandas plotly
+python -m venv venv
+# Activate virtual environment
+# Windows:
+venv\Scripts\activate
+# macOS/Linux:
+source venv/bin/activate
 ```
 
-3. **Configure Zoho CRM credentials:**
-Update the following variables in `full_dashboard.py`:
-```python
-ZOHO_CLIENT_ID = "your_client_id"
-ZOHO_CLIENT_SECRET = "your_client_secret"
-ZOHO_REFRESH_TOKEN = "your_refresh_token"
+3. **Install required packages:**
+```bash
+pip install -r requirements.txt
 ```
+
+4. **Configure Environment Variables:**
+   - Copy `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+   - Edit `.env` and add your Zoho CRM credentials:
+   ```
+   ZOHO_CLIENT_ID=your_client_id
+   ZOHO_CLIENT_SECRET=your_client_secret
+   ZOHO_REFRESH_TOKEN=your_refresh_token
+   ```
+
+## Security Setup
+
+### 🔐 Environment Variables
+Your Zoho CRM credentials are stored securely in a `.env` file:
+
+- **`.env`** - Contains your actual credentials (NEVER commit this!)
+- **`.env.example`** - Template file to share with team
+- **`.gitignore`** - Prevents `.env` from being committed
+
+See [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) for detailed security guidelines.
 
 ## Usage
 
