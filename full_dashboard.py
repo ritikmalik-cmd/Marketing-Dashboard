@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import time
 import os
 from dotenv import load_dotenv
+from sheets_integration import GoogleSheetsManager
 
 # Load environment variables from .env file
 load_dotenv()
@@ -380,8 +381,22 @@ def main():
     )
     
     # Header
-    st.title("📊 Marketing Leads Dashboard")
-    st.markdown("Real-time insights from Zoho CRM with advanced filtering")
+    st.title("📊 Marketing Analytics Dashboard")
+    st.markdown("Real-time insights from Zoho CRM and Google Sheets")
+    
+    # Create tabs for different dashboards
+    tab1, tab2 = st.tabs(["🔍 CRM Leads Dashboard", "📊 Frejun Dashboard"])
+    
+    # ==================== TAB 1: CRM LEADS DASHBOARD ====================
+    with tab1:
+        render_crm_dashboard()
+    
+    # ==================== TAB 2: FREJUN DASHBOARD ====================
+    with tab2:
+        render_sheets_dashboard()
+
+def render_crm_dashboard():
+    """Render the original CRM dashboard"""
     
     # Initialize CRM
     if 'crm' not in st.session_state:
@@ -391,7 +406,7 @@ def main():
     st.sidebar.header("🔧 Filters & Controls")
     
     # Refresh button
-    if st.sidebar.button("🔄 Refresh Data", type="primary"):
+    if st.sidebar.button("🔄 Refresh Data", type="primary", key="refresh_zoho"):
         with st.spinner("Connecting to Zoho CRM..."):
             if st.session_state.crm.get_access_token():
                 st.session_state.leads = st.session_state.crm.get_leads()
@@ -576,7 +591,7 @@ def main():
         with col1:
             st.subheader(f"Showing {len(filtered_leads)} leads")
         with col2:
-            if st.button("📥 Export CSV"):
+            if st.button("📥 Export CSV", key="export_leads"):
                 # Prepare CSV data
                 csv_data = []
                 for lead in filtered_leads:
@@ -598,6 +613,7 @@ def main():
                     data=csv,
                     file_name=f"leads_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
                     mime="text/csv"
+                    ,key="download_leads"
                 )
     
     create_leads_table(filtered_leads)
@@ -609,6 +625,216 @@ def main():
     st.markdown("• Select date ranges to analyze trends over time") 
     st.markdown("• Export filtered data as CSV for further analysis")
     st.markdown(f"• Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+def render_sheets_dashboard():
+    """Render the Google Sheets/Excel dashboard"""
+    st.header("📊 Frejun Dashboard")
+    st.markdown("Visualize and analyze data from your Google Sheets - Team Member Performance Tracking")
+    
+    # Initialize Google Sheets Manager
+    if 'sheets_manager' not in st.session_state:
+        st.session_state.sheets_manager = GoogleSheetsManager()
+    
+    sheets_manager = st.session_state.sheets_manager
+    
+    # Sidebar for sheet controls
+    with st.sidebar:
+        st.header("📄 Sheet Controls")
+        
+        # Validate credentials
+        is_valid, message = sheets_manager.validate_credentials()
+        
+        if not is_valid:
+            st.error(f"❌ {message}")
+            st.info("👉 Please configure Google Sheet ID in .env file")
+            return
+        
+        # Show access method
+        if sheets_manager.use_public_access:
+            st.success("✅ Using public sheet access")
+            st.info("💡 No credentials needed! Make sure your sheet is set to 'Anyone with the link can view'")
+        else:
+            st.success("✅ Using authenticated access")
+        
+        # Team member selector
+        st.subheader("👥 Select Team Member")
+        team_members = sheets_manager.get_team_members()
+        
+        if 'selected_member' not in st.session_state:
+            st.session_state.selected_member = team_members[0] if team_members else None
+        
+        selected_member = st.selectbox(
+            "Choose team member:",
+            team_members,
+            index=team_members.index(st.session_state.selected_member) if st.session_state.selected_member in team_members else 0,
+            help="Select a team member to view their performance data"
+        )
+        
+        # Update session state
+        if selected_member != st.session_state.get('selected_member'):
+            st.session_state.selected_member = selected_member
+            # Clear existing data to force reload
+            if 'sheet_data' in st.session_state:
+                del st.session_state.sheet_data
+        
+        st.markdown("---")
+        
+        # Refresh button
+        if st.button("🔄 Load Sheet Data", type="primary", key="load_sheet_data"):
+            with st.spinner(f"Loading data for {selected_member}..."):
+                st.session_state.sheet_data = sheets_manager.get_team_member_data(selected_member)
+                if st.session_state.sheet_data is not None:
+                    st.success(f"✅ Data loaded for {selected_member}!")
+                    time.sleep(1)
+    
+    # Load data if not exists
+    if 'sheet_data' not in st.session_state:
+        with st.spinner(f"Loading initial data for {st.session_state.selected_member}..."):
+            st.session_state.sheet_data = sheets_manager.get_team_member_data(st.session_state.selected_member)
+    
+    # Get the data
+    df = st.session_state.get('sheet_data')
+    
+    if df is None or df.empty:
+        st.warning(f"⚠️ No data available for {st.session_state.selected_member}.")
+        
+        if sheets_manager.use_public_access:
+            st.error("**Google Sheet is not publicly accessible!**")
+            st.info("**To fix this - Make your sheet public:**")
+            st.markdown("""
+            1. Open your Google Sheet: [Click here](https://docs.google.com/spreadsheets/d/1jS9itYg7DccpssVn0vaabiP7LJyjoVoic_i1dqNIdXE/edit)
+            2. Click the **'Share'** button (top right)
+            3. Click **'Change to anyone with the link'**
+            4. Set permission to **'Viewer'**
+            5. Click **'Done'**
+            6. Come back here and click **'Load Sheet Data'**
+            """)
+        else:
+            st.info("**Setup Instructions:**")
+            st.markdown("""
+            1. **Create Google Cloud Project** and enable Google Sheets API
+            2. **Create Service Account** and download credentials JSON
+            3. **Save credentials.json** in the project directory
+            4. **Share your Google Sheet** with the service account email (found in credentials.json)
+            5. Click the **'Load Sheet Data'** button above
+            """)
+        return
+    
+    # Show selected member and data info
+    st.success(f"📊 Viewing data for: **{st.session_state.selected_member}**")
+    
+    st.subheader("📋 Data Overview")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric("📊 Total Rows", len(df))
+    with col2:
+        st.metric("📝 Columns", len(df.columns))
+    with col3:
+        numeric_cols = df.select_dtypes(include=['number']).columns
+        st.metric("🔢 Numeric Columns", len(numeric_cols))
+    
+    # Data filters
+    st.subheader("🔍 Filters")
+    
+    # Month filter - only this filter will be shown for Sheets data
+    if 'Date' in df.columns:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Month-wise filter
+            if 'Date' in df.columns:
+                st.markdown("**📅 Month Filter**")
+                
+                # Try to parse dates
+                try:
+                    df['Date_parsed'] = pd.to_datetime(df['Date'], errors='coerce')
+                    # Create a period and a readable label for each month
+                    df['MonthPeriod'] = df['Date_parsed'].dt.to_period('M')
+                    df['MonthLabel'] = df['Date_parsed'].dt.strftime('%B %y')
+                    
+                    # Get unique month labels (readable) but preserve order by period
+                    months = df[['MonthPeriod', 'MonthLabel']].dropna().drop_duplicates()
+                    months = months.sort_values('MonthPeriod')
+                    unique_months = months['MonthLabel'].tolist()
+                    
+                    if unique_months:
+                        selected_months = st.multiselect(
+                            "Select month(s):",
+                            options=unique_months,
+                            default=unique_months,
+                            help="Filter data by specific months"
+                        )
+                        
+                        if selected_months:
+                            # Filter using the readable month labels
+                            df = df[df['MonthLabel'].isin(selected_months)]
+                    else:
+                        st.info("No valid dates found in Date column")
+                except Exception as e:
+                    st.warning(f"Could not parse dates: {e}")
+        
+        # Right column: show info or additional helper text only (no extra filters)
+        with col2:
+            st.markdown("**ℹ️ Filters:** Only month-wise filter is available here.\nUse the month selector to narrow data by month.")
+    else:
+        st.info("No 'Date' column found — month filter unavailable. Available columns: " + ", ".join(df.columns))
+    
+    # Display data table
+    st.subheader(f"📊 Data Table - {st.session_state.selected_member}")
+    st.dataframe(df, use_container_width=True, height=400)
+    
+    # Export option
+    col1, col2 = st.columns([3, 1])
+    with col2:
+        if st.button("📥 Export CSV", key=f"export_sheet_{st.session_state.selected_member}"):
+            csv = df.to_csv(index=False)
+            st.download_button(
+                label="Download CSV",
+                data=csv,
+                file_name=f"{st.session_state.selected_member}_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                mime="text/csv"
+                ,key=f"download_sheet_{st.session_state.selected_member}"
+            )
+    
+    # Visualizations
+    st.subheader("📈 Data Visualizations")
+    
+    # Auto-detect numeric columns for charts
+    numeric_columns = df.select_dtypes(include=['number']).columns.tolist()
+    categorical_columns = df.select_dtypes(include=['object']).columns.tolist()
+    
+    if len(numeric_columns) > 0:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("**📊 Bar Chart**")
+            if len(categorical_columns) > 0 and len(numeric_columns) > 0:
+                x_axis = st.selectbox("X-axis (Category):", categorical_columns, key="bar_x")
+                y_axis = st.selectbox("Y-axis (Value):", numeric_columns, key="bar_y")
+                
+                # Aggregate data if needed
+                chart_data = df.groupby(x_axis)[y_axis].sum().reset_index()
+                
+                fig_bar = px.bar(
+                    chart_data,
+                    x=x_axis,
+                    y=y_axis,
+                    title=f"{y_axis} by {x_axis}",
+                    color=y_axis,
+                    color_continuous_scale='Viridis'
+                )
+                st.plotly_chart(fig_bar, use_container_width=True)
+            else:
+                st.info("Need at least one categorical and one numeric column")
+        
+        # Pie Chart removed (per request)
+        
+        # Line Chart removed (per request)
+    else:
+        st.info("No numeric columns found for visualization. Your data might be purely categorical.")
+    
+    # Summary statistics removed as requested
 
 if __name__ == "__main__":
     main()

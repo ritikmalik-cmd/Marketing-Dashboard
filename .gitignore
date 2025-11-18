@@ -6,6 +6,11 @@
 .env.local
 .env.*.local
 
+# Google Sheets Credentials
+credentials.json
+*.json
+!credentials.json.template
+
 # Python
 __pycache__/
 *.py[cod]
